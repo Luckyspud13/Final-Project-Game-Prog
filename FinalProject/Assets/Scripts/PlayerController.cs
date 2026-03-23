@@ -11,6 +11,8 @@ public class PlayerController : MonoBehaviour
     private Vector3 velocity;
     private Vector3 moveInput;
     private bool isGliding = false;
+    private bool boosted = false;
+    public GameObject explosionEffect;
     
     CharacterController controller;
 
@@ -54,6 +56,11 @@ public class PlayerController : MonoBehaviour
             else
             {
                 isGliding = false;
+            }
+            if(Input.GetKeyDown(KeyCode.F))
+            {
+                Instantiate(explosionEffect, transform.position - Vector3.down, transform.rotation);
+                velocity.y = Mathf.Sqrt(jumpHeight * 4f * gravity);
             }
         }
 
