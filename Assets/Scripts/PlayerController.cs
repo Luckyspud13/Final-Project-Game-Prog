@@ -3,13 +3,11 @@ using UnityEngine;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("Unlockable Abilities (toggle in Inspector)")]
-    [Tooltip("Enables double-jump with fuel cost")]
+    [Header("Unlockable Abilities")]
     [SerializeField] private bool hasJetpack = false;
-    [Tooltip("Enables gliding after air jumps are used")]
     [SerializeField] private bool hasElytra = false;
-    [Tooltip("Enables wall sliding and wall jumping")]
     [SerializeField] private bool hasWallJumpBoots = false;
+    [SerializeField] private bool hasPlatformBoots = false;
 
     [Header("Movement")]
     [SerializeField] private float maxGroundSpeed = 10f;
@@ -59,9 +57,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float elytraMaxSpeed = 50f;
     [SerializeField] private float elytraMinSpeedToGlide = 3f;
     [SerializeField] private float elytraGravity = 9.7f;
+    [SerializeField] private float elytraSteerSpeed = 5f;
     [SerializeField] private Transform cameraTransform;
 
-    // internal state
+    [Header("Platform Creation")]
+    [SerializeField] private GameObject platformPrefab;
+    [SerializeField] private float platformDuration = 4f;
+    [SerializeField] private AudioClip platformSound;
+
+    // ── Internal state ──
     private CharacterController controller;
     private PlayerStats stats;
 
@@ -89,7 +93,11 @@ public class PlayerController : MonoBehaviour
     private float normalHeight;
     private float normalCenter;
 
-    // public read-only for UI or other scripts
+    // platform creation
+    private bool canCreatePlatform;
+    private AudioSource audioSource;
+
+    // public read-only
     public bool IsGrounded => controller.isGrounded;
     public bool IsElytraGliding => isElytraGliding;
     public bool IsWallSliding => isWallSliding;
@@ -100,30 +108,31 @@ public class PlayerController : MonoBehaviour
         ? elytraVelocity.magnitude
         : new Vector3(horizontalVel.x, 0f, horizontalVel.z).magnitude;
 
-    // public setters so other scripts can unlock abilities at runtime
-    public bool HasJetpack       { get => hasJetpack;       set => hasJetpack = value; }
-    public bool HasElytra        { get => hasElytra;        set => hasElytra = value; }
-    public bool HasWallJumpBoots { get => hasWallJumpBoots;  set => hasWallJumpBoots = value; }
+    // public unlock properties
+    public bool HasJetpack        { get => hasJetpack;        set => hasJetpack = value; }
+    public bool HasElytra         { get => hasElytra;         set => hasElytra = value; }
+    public bool HasWallJumpBoots  { get => hasWallJumpBoots;  set => hasWallJumpBoots = value; }
+    public bool HasPlatformBoots  { get => hasPlatformBoots;  set => hasPlatformBoots = value; }
 
     void Start()
     {
         controller = GetComponent<CharacterController>();
         stats = GetComponent<PlayerStats>();
+        audioSource = GetComponent<AudioSource>();
 
         normalHeight = controller.height;
         normalCenter = controller.center.y;
 
         if (stats == null)
-            Debug.LogWarning("PlayerController: no PlayerStats found – jetpack fuel ignored.");
+            Debug.LogWarning("PlayerController: No PlayerStats – jetpack fuel ignored.");
 
-        // auto-find camera if not manually assigned
         if (cameraTransform == null)
         {
             Camera cam = GetComponentInChildren<Camera>();
             if (cam != null)
                 cameraTransform = cam.transform;
             else
-                Debug.LogWarning("PlayerController: no camera found – elytra won't work.");
+                Debug.LogWarning("PlayerController: No camera found – elytra won't work.");
         }
     }
 
@@ -133,9 +142,38 @@ public class PlayerController : MonoBehaviour
             UpdateElytraFlight();
         else
             UpdateNormalMovement();
+
+        HandlePlatformCreation();
     }
 
-    //  normal movement
+    // ── platform creation ──
+    void HandlePlatformCreation()
+    {
+        if (!hasPlatformBoots) return;
+
+        // reset on landing so next jump allows one platform
+        if (controller.isGrounded)
+            canCreatePlatform = true;
+
+        if (Input.GetKeyDown(KeyCode.E) && canCreatePlatform && !controller.isGrounded)
+        {
+            CreatePlatform();
+            canCreatePlatform = false;
+        }
+    }
+
+    void CreatePlatform()
+    {
+        // spawn just below the player's feet
+        Vector3 spawnPos = transform.position + Vector3.down * 1.1f;
+        GameObject newPlatform = Instantiate(platformPrefab, spawnPos, Quaternion.identity);
+        Destroy(newPlatform, platformDuration);
+
+        if (platformSound && audioSource != null)
+            audioSource.PlayOneShot(platformSound);
+    }
+
+    // ── normal movement ──
     void UpdateNormalMovement()
     {
         bool grounded = controller.isGrounded;
@@ -148,7 +186,7 @@ public class PlayerController : MonoBehaviour
             isJetpackBoosting = false;
             jetpackBoostTimer = 0f;
 
-            // buffered slide — pressed slide while in the air
+            // buffered slide from air
             if (wantsSlideOnLand)
             {
                 wantsSlideOnLand = false;
@@ -171,7 +209,7 @@ public class PlayerController : MonoBehaviour
             stats.RegenFuel(Time.deltaTime);
     }
 
-    //  sprinting — hold shift while moving forward
+    // ── sprinting: hold shift ──
     void HandleSprinting(bool grounded)
     {
         bool wantsSprint = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
@@ -179,66 +217,46 @@ public class PlayerController : MonoBehaviour
         isSprinting = wantsSprint && grounded && !isSliding && moveV > 0.1f;
     }
 
-    //  sliding — hold left ctrl, release to stop
-    //  change the key bind here
+    // ── sliding: hold to slide, let go to stop ──
     private bool SlideKeyHeld => Input.GetKey(KeyCode.LeftControl);
     private bool SlideKeyDown => Input.GetKeyDown(KeyCode.LeftControl);
 
     void HandleSliding(bool grounded)
     {
-        // start slide on press
+        // start slide on initial press
         if (SlideKeyDown)
         {
             if (grounded)
                 TryStartSlide();
             else
-                wantsSlideOnLand = true; // buffer for when we land
+                wantsSlideOnLand = true;
         }
 
-        // release = stop
+        // let go = stop sliding
         if (isSliding && !SlideKeyHeld)
             TryStopSlide();
 
-        // released in air = cancel buffer
+        // let go in air = cancel buffer
         if (!SlideKeyHeld)
             wantsSlideOnLand = false;
 
-        if (!isSliding) return;
-
-        // auto-stop when too slow
-        float speed = new Vector3(horizontalVel.x, 0f, horizontalVel.z).magnitude;
-        if (speed < slideMinSpeed && grounded)
+        if (isSliding && grounded)
         {
-            TryStopSlide();
-            return;
-        }
+            float slopeAngle = Vector3.Angle(Vector3.up, GetGroundNormal());
+            Vector3 slopeDir = Vector3.ProjectOnPlane(Vector3.down, GetGroundNormal()).normalized;
 
-        // airborne while sliding — stay crouched but skip slide physics
-        if (!grounded) return;
-
-        // downhill slope boost
-        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, 2f))
-        {
-            float slopeAngle = Vector3.Angle(hit.normal, Vector3.up);
-            if (slopeAngle > 5f)
+            if (slopeAngle > 2f)
             {
-                Vector3 slopeDir = Vector3.ProjectOnPlane(Vector3.down, hit.normal).normalized;
-                float downhillDot = Vector3.Dot(horizontalVel.normalized, slopeDir);
-
-                if (downhillDot > 0.1f)
-                {
-                    Vector3 boost = slopeDir * slideSlopeBoost * (slopeAngle / 45f) * Time.deltaTime;
-                    horizontalVel += new Vector3(boost.x, 0f, boost.z);
-                }
+                float slopeComponent = Vector3.Dot(horizontalVel.normalized, slopeDir);
+                if (slopeComponent > 0f)
+                    horizontalVel += slopeDir * slideSlopeBoost * Time.deltaTime;
             }
-        }
 
-        // cap slide speed
-        Vector3 flat = new Vector3(horizontalVel.x, 0f, horizontalVel.z);
-        if (flat.magnitude > slideMaxSpeed)
-        {
-            flat = flat.normalized * slideMaxSpeed;
-            horizontalVel = new Vector3(flat.x, 0f, flat.z);
+            if (horizontalVel.magnitude > slideMaxSpeed)
+                horizontalVel = horizontalVel.normalized * slideMaxSpeed;
+
+            if (horizontalVel.magnitude < slideMinSpeed)
+                TryStopSlide();
         }
     }
 
@@ -249,214 +267,251 @@ public class PlayerController : MonoBehaviour
 
         isSliding = true;
         isSprinting = false;
-        controller.height = slideHeight;
-        controller.center = new Vector3(0f, slideHeight * 0.5f, 0f);
 
-        // apex-style speed kick on entry
-        Vector3 flatVel = new Vector3(horizontalVel.x, 0f, horizontalVel.z);
-        if (flatVel.magnitude > 0.1f)
-            horizontalVel += flatVel.normalized * slideBoostSpeed;
+        controller.height = slideHeight;
+        controller.center = new Vector3(0f, slideHeight / 2f, 0f);
+
+        // kick in slide direction
+        Vector3 slideDir = horizontalVel.normalized;
+        if (slideDir.sqrMagnitude < 0.01f)
+            slideDir = transform.forward;
+
+        horizontalVel = slideDir * (speed + slideBoostSpeed);
     }
 
     void TryStopSlide()
     {
-        if (IsBlockedAbove()) return; // can't stand up yet
+        // ceiling check — stay crouched if something is above
+        float checkDist = normalHeight - slideHeight;
+        if (Physics.Raycast(transform.position + Vector3.up * slideHeight, Vector3.up, checkDist + 0.1f))
+            return;
 
         isSliding = false;
         controller.height = normalHeight;
         controller.center = new Vector3(0f, normalCenter, 0f);
     }
 
-    // check if ceiling is too low to uncrouch
-    bool IsBlockedAbove()
-    {
-        float checkDist = normalHeight - slideHeight;
-        Vector3 origin = transform.position + Vector3.up * slideHeight;
-        return Physics.Raycast(origin, Vector3.up, checkDist + 0.1f);
-    }
-
-    //  horizontal movement
+    // ── horizontal movement ──
     void HandleHorizontalMovement(bool grounded)
     {
-        float moveH = Input.GetAxisRaw("Horizontal");
-        float moveV = Input.GetAxisRaw("Vertical");
+        float h = Input.GetAxisRaw("Horizontal");
+        float v = Input.GetAxisRaw("Vertical");
+        Vector3 wishDir = (transform.right * h + transform.forward * v).normalized;
 
-        Vector3 wishDir = transform.right * moveH + transform.forward * moveV;
-        if (wishDir.sqrMagnitude > 1f) wishDir.Normalize();
-
-        float accel    = grounded ? groundAcceleration : airAcceleration;
-        float maxSpeed = grounded ? maxGroundSpeed     : maxAirSpeed;
-
-        // sprint boosts
-        if (isSprinting)
+        if (isSliding)
         {
-            maxSpeed *= sprintSpeedMultiplier;
-            accel *= sprintAccelMultiplier;
-        }
-
-        // friction depends on state
-        float friction;
-        if (!grounded)
-            friction = airFriction;
-        else if (isSliding)
-            friction = slideFriction;
-        else
-            friction = groundFriction;
-
-        // sliding = no input, pure momentum coast
-        if (isSliding && grounded)
-        {
-            Vector3 flat = new Vector3(horizontalVel.x, 0f, horizontalVel.z);
-            flat = Vector3.MoveTowards(flat, Vector3.zero, friction * Time.deltaTime);
-            horizontalVel = new Vector3(flat.x, 0f, flat.z);
+            // only friction while sliding, no input steering
+            float friction = slideFriction;
+            horizontalVel = Vector3.MoveTowards(horizontalVel, Vector3.zero, friction * Time.deltaTime);
             return;
         }
 
-        if (wishDir.sqrMagnitude > 0f)
+        float accel, maxSpd, friction2;
+
+        if (grounded)
         {
-            horizontalVel += wishDir * accel * Time.deltaTime;
-            Vector3 flat = new Vector3(horizontalVel.x, 0f, horizontalVel.z);
-            if (flat.magnitude > maxSpeed)
+            accel = groundAcceleration;
+            maxSpd = maxGroundSpeed;
+            friction2 = groundFriction;
+
+            if (isSprinting)
             {
-                flat = flat.normalized * maxSpeed;
-                horizontalVel = new Vector3(flat.x, 0f, flat.z);
+                maxSpd *= sprintSpeedMultiplier;
+                accel *= sprintAccelMultiplier;
             }
         }
         else
         {
-            Vector3 flat = new Vector3(horizontalVel.x, 0f, horizontalVel.z);
-            flat = Vector3.MoveTowards(flat, Vector3.zero, friction * Time.deltaTime);
-            horizontalVel = new Vector3(flat.x, 0f, flat.z);
+            accel = airAcceleration;
+            maxSpd = maxAirSpeed;
+            friction2 = airFriction;
         }
+
+        if (wishDir.sqrMagnitude > 0.01f)
+        {
+            float currentSpeedInWishDir = Vector3.Dot(horizontalVel, wishDir);
+            float addSpeed = Mathf.Max(0f, maxSpd - currentSpeedInWishDir);
+            float accelAmount = Mathf.Min(accel * Time.deltaTime, addSpeed);
+            horizontalVel += wishDir * accelAmount;
+        }
+        else if (grounded)
+        {
+            horizontalVel = Vector3.MoveTowards(horizontalVel, Vector3.zero, friction2 * Time.deltaTime);
+        }
+
+        if (grounded && horizontalVel.magnitude > maxSpd)
+            horizontalVel = Vector3.MoveTowards(horizontalVel, horizontalVel.normalized * maxSpd, friction2 * Time.deltaTime);
     }
 
-    //  wall detection
+    // ── wall detection ──
     void DetectWall(bool grounded)
     {
         isWallSliding = false;
-        if (!hasWallJumpBoots || grounded) return;
 
-        Vector3[] directions = { transform.forward, -transform.forward, transform.right, -transform.right };
-        foreach (var dir in directions)
+        if (!hasWallJumpBoots) return;
+        if (grounded || verticalVel > 0f) return;
+
+        Vector3[] dirs = { transform.forward, -transform.forward, transform.right, -transform.right };
+        foreach (var dir in dirs)
         {
             if (Physics.Raycast(transform.position, dir, out RaycastHit hit, wallCheckDistance, wallLayer))
             {
-                if (verticalVel < 0f)
-                {
-                    isWallSliding = true;
-                    wallNormal = hit.normal;
-                }
-                return;
+                isWallSliding = true;
+                wallNormal = hit.normal;
+                break;
             }
         }
     }
 
-    //  jumping — ground → wall → jetpack → elytra
+    // ── jumping ──
     void HandleJumping(bool grounded)
     {
         if (!Input.GetButtonDown("Jump")) return;
 
-        // cancel buffered slide
-        wantsSlideOnLand = false;
-
-        // slide-jump keeps momentum
-        if (isSliding)
-            TryStopSlide();
-
         // ground jump
         if (grounded)
         {
-            verticalVel = Mathf.Sqrt(jumpHeight * 2f * gravity);
+            verticalVel = Mathf.Sqrt(2f * jumpHeight * gravity);
+            if (isSliding) TryStopSlide();
             return;
         }
 
         // wall jump
-        if (hasWallJumpBoots && isWallSliding)
+        if (isWallSliding && hasWallJumpBoots)
         {
             verticalVel = wallJumpUpForce;
             horizontalVel = wallNormal * wallJumpAwayForce;
             isWallSliding = false;
-            airJumpsUsed = 0;
             return;
         }
 
-        // jetpack double-jump
+        // jetpack air jump
         if (hasJetpack && airJumpsUsed < maxAirJumps)
         {
-            bool hasFuel = stats == null || stats.TryUseFuel(jetpackFuelCost);
-            if (hasFuel)
-            {
-                verticalVel = jetpackBoost;
-                airJumpsUsed++;
-                isJetpackBoosting = true;
-                jetpackBoostTimer = 0f;
-                return;
-            }
+            if (stats != null && stats.CurrentFuel < jetpackFuelCost) return;
+            stats?.TryUseFuel(jetpackFuelCost);
+
+            verticalVel = jetpackBoost;
+            airJumpsUsed++;
+
+            // start hold boost
+            isJetpackBoosting = true;
+            jetpackBoostTimer = 0f;
+            return;
         }
 
-        // elytra — only when falling and air jumps are used up
-        if (hasElytra && verticalVel < 0f)
+        // elytra — only after jetpack jumps exhausted (or no jetpack)
+        if (hasElytra && (!hasJetpack || airJumpsUsed >= maxAirJumps))
         {
-            bool canActivate = !hasJetpack || airJumpsUsed >= maxAirJumps;
-            if (canActivate)
+            if (CurrentSpeed >= elytraMinSpeedToGlide)
                 EnterElytra();
         }
     }
 
-    //  jetpack hold boost — keep holding space after double-jump
+    // ── jetpack hold boost ──
     void HandleJetpackHoldBoost(bool grounded)
     {
-        if (!hasJetpack || grounded || !isJetpackBoosting) return;
+        if (grounded || !isJetpackBoosting) return;
 
-        bool holding = Input.GetButton("Jump");
-        bool hasTime = jetpackBoostTimer < jetpackHoldMaxDuration;
-        bool hasFuel = stats == null || stats.CurrentFuel > 0f;
+        if (Input.GetButton("Jump") && jetpackBoostTimer < jetpackHoldMaxDuration)
+        {
+            float fuelCost = jetpackHoldFuelPerSec * Time.deltaTime;
+            if (stats != null && stats.CurrentFuel < fuelCost)
+            {
+                isJetpackBoosting = false;
+                return;
+            }
+            stats?.TryUseFuel(fuelCost);
 
-        if (!holding || !hasTime || !hasFuel)
+            verticalVel += jetpackHoldForce * Time.deltaTime;
+            jetpackBoostTimer += Time.deltaTime;
+        }
+        else
         {
             isJetpackBoosting = false;
-            return;
         }
-
-        float fuelCost = jetpackHoldFuelPerSec * Time.deltaTime;
-        if (stats != null && !stats.TryUseFuel(fuelCost))
-        {
-            isJetpackBoosting = false;
-            return;
-        }
-
-        verticalVel += jetpackHoldForce * Time.deltaTime;
-        jetpackBoostTimer += Time.deltaTime;
     }
 
+    // ── gravity ──
     void ApplyNormalGravity(bool grounded)
     {
-        if (grounded && verticalVel < 0f) return;
+        if (grounded) return;
 
-        float g = gravity;
-        if (hasWallJumpBoots && isWallSliding)
-            g = wallSlideGravity;
-
-        verticalVel -= g * Time.deltaTime;
+        float grav = (isWallSliding && verticalVel < 0f) ? wallSlideGravity : gravity;
+        verticalVel -= grav * Time.deltaTime;
     }
 
-    //  elytra flight — camera direction = flight direction
-    //  look down to dive and gain speed
-    //  look up to trade speed for height
-    //  level flight slowly loses speed to drag
+    // ── elytra flight ──
     void EnterElytra()
     {
         isElytraGliding = true;
-        isJetpackBoosting = false;
-
-        // carry current velocity into 3D flight
+        // carry over current velocity into elytra
         elytraVelocity = horizontalVel + Vector3.up * verticalVel;
+    }
 
-        // ensure minimum forward speed
-        Vector3 flatForward = new Vector3(transform.forward.x, 0f, transform.forward.z).normalized;
-        Vector3 flatVel = new Vector3(elytraVelocity.x, 0f, elytraVelocity.z);
-        if (flatVel.magnitude < elytraMinSpeedToGlide)
-            elytraVelocity = flatForward * elytraMinSpeedToGlide + Vector3.up * elytraVelocity.y;
+    void UpdateElytraFlight()
+    {
+        // land if grounded and moving downward
+        if (controller.isGrounded && elytraVelocity.y <= 0f)
+        {
+            ExitElytra();
+            return;
+        }
+
+        // press jump again to exit elytra
+        if (Input.GetButtonDown("Jump"))
+        {
+            ExitElytra();
+            return;
+        }
+
+        // ── fly where the camera looks ──
+        // MouseLook already handles yaw (playerRoot) and pitch (camera local),
+        // so we just steer velocity toward the camera's forward direction.
+        if (cameraTransform != null)
+        {
+            Vector3 lookDir = cameraTransform.forward;
+            float speed = elytraVelocity.magnitude;
+
+            // smoothly steer velocity toward where the camera points
+            elytraVelocity = Vector3.Lerp(
+                elytraVelocity.normalized,
+                lookDir,
+                elytraSteerSpeed * Time.deltaTime
+            ).normalized * speed;
+        }
+
+        // gravity pulls down
+        elytraVelocity += Vector3.down * (elytraGravity * Time.deltaTime);
+
+        // lift from angle of attack
+        float currentSpeed = elytraVelocity.magnitude;
+        Vector3 flatVel = Vector3.ProjectOnPlane(elytraVelocity, Vector3.up);
+        float aoa = Vector3.Angle(elytraVelocity, flatVel);
+
+        // generate lift when not in a pure nosedive
+        if (elytraVelocity.y > -currentSpeed * 0.95f)
+        {
+            float lift = elytraLiftCoefficient * currentSpeed * currentSpeed * Mathf.Sin(aoa * Mathf.Deg2Rad);
+            elytraVelocity += Vector3.up * lift * Time.deltaTime;
+        }
+
+        // drag — speed squared
+        float drag = elytraDrag * currentSpeed * currentSpeed;
+        elytraVelocity = Vector3.MoveTowards(elytraVelocity, Vector3.zero, drag * Time.deltaTime);
+
+        // clamp to max speed
+        if (elytraVelocity.magnitude > elytraMaxSpeed)
+            elytraVelocity = elytraVelocity.normalized * elytraMaxSpeed;
+
+        // too slow — stall out
+        if (elytraVelocity.magnitude < elytraMinSpeedToGlide)
+        {
+            ExitElytra();
+            return;
+        }
+
+        controller.Move(elytraVelocity * Time.deltaTime);
     }
 
     void ExitElytra()
@@ -466,73 +521,11 @@ public class PlayerController : MonoBehaviour
         verticalVel = elytraVelocity.y;
     }
 
-    void UpdateElytraFlight()
+    // ── helpers ──
+    Vector3 GetGroundNormal()
     {
-        // land
-        if (controller.isGrounded)
-        {
-            ExitElytra();
-            return;
-        }
-
-        // toggle off
-        if (Input.GetButtonDown("Jump"))
-        {
-            ExitElytra();
-            return;
-        }
-
-        if (cameraTransform == null) return;
-
-        float dt = Time.deltaTime;
-        float speed = elytraVelocity.magnitude;
-
-        // where the camera is looking = where we want to fly
-        Vector3 desiredDir = cameraTransform.forward.normalized;
-
-        // 1) gravity — constant pull, your energy source
-        elytraVelocity += Vector3.down * elytraGravity * dt;
-
-        // 2) lift — redirects velocity toward where you're looking
-        //    speed × angle of attack = how hard you can turn/pull up
-        speed = elytraVelocity.magnitude;
-        if (speed > 0.1f)
-        {
-            Vector3 velDir = elytraVelocity.normalized;
-            float aoA = Vector3.Angle(velDir, desiredDir);
-            float liftForce = elytraLiftCoefficient * speed * aoA;
-
-            elytraVelocity = Vector3.RotateTowards(
-                elytraVelocity,
-                desiredDir * speed,
-                liftForce * dt * Mathf.Deg2Rad,
-                0f
-            );
-        }
-
-        // 3) drag — speed² air resistance
-        speed = elytraVelocity.magnitude;
-        float dragForce = elytraDrag * speed * speed;
-        if (speed > 0.1f)
-        {
-            float newSpeed = Mathf.Max(speed - dragForce * dt, 0f);
-            elytraVelocity = elytraVelocity.normalized * newSpeed;
-        }
-
-        // 4) speed clamp
-        speed = elytraVelocity.magnitude;
-        if (speed > elytraMaxSpeed)
-            elytraVelocity = elytraVelocity.normalized * elytraMaxSpeed;
-
-        // 5) stall — too slow + falling = exit flight
-        Vector3 flatVel = new Vector3(elytraVelocity.x, 0f, elytraVelocity.z);
-        if (flatVel.magnitude < elytraMinSpeedToGlide && elytraVelocity.y < -2f)
-        {
-            ExitElytra();
-            return;
-        }
-
-        // 6) move
-        controller.Move(elytraVelocity * dt);
+        if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, controller.height * 0.5f + 0.3f))
+            return hit.normal;
+        return Vector3.up;
     }
 }
