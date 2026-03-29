@@ -8,55 +8,49 @@ public class PlayerStats : MonoBehaviour
     private float currentSpeed;
     private Vector3 acceleration;
     private float maxSpeed;
-    public float jumpHeight;
-    public float playerSpeed;
-    public float gravity;
-    public float airControl;
-    
+
+    [Header("Jetpack Fuel")]
+    [SerializeField] private float maxFuel = 100f;
+
+    private float currentFuel;
+
+    // public read-only for UI
+    public float CurrentFuel => currentFuel;
+    public float MaxFuel => maxFuel;
+    public float FuelPercent => currentFuel / maxFuel;
+
     void Start()
     {
-        Debug.Log("PlayerState Starts");
+        Debug.Log("PlayerStats Starts");
+        currentFuel = maxFuel;
     }
 
-    public int GetHealth()
+    // existing getters/setters
+
+    public int GetHealth() { return health; }
+    public Vector3 GetDirection() { return direction; }
+    public float GetCurrentSpeed() { return currentSpeed; }
+    public Vector3 GetAcceleration() { return acceleration; }
+
+    public void SetHealth(int newHealth) { health = newHealth; }
+    public void SetDirection(Vector3 newDirection) { direction = newDirection; }
+    public void SetCurrentSpeed(float newSpeed) { currentSpeed = newSpeed; }
+    public void SetAcceleration(Vector3 newAcceleration) { acceleration = newAcceleration; }
+
+    // jetpack fuel
+
+    // try to spend fuel, returns false if not enough
+    public bool TryUseFuel(float amount)
     {
-        return health;
+        if (currentFuel < amount) return false;
+
+        currentFuel -= amount;
+        return true;
     }
 
-    public Vector3 GetDirection()
+    // called by battery pickups to restore fuel
+    public void AddFuel(float amount)
     {
-        return direction;
+        currentFuel = Mathf.Min(currentFuel + amount, maxFuel);
     }
-
-    public float GetCurrentSpeed()
-    {
-        return currentSpeed;
-    }
-
-    public Vector3 GetAcceleration()
-    {
-        return acceleration;
-    }
-
-    public void SetHealth(int newHealth)
-    {
-        health = newHealth;
-    }
-
-    public void SetDirection(Vector3 newDirection)
-    {
-        direction = newDirection;
-    }
-
-    public void SetCurrentSpeed(float newSpeed)
-    {
-        currentSpeed = newSpeed;
-    }
-
-    public void SetAcceleration(Vector3 newAcceleration)
-    {
-        acceleration = newAcceleration;
-    }
-
-
 }

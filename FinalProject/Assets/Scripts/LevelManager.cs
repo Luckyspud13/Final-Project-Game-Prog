@@ -8,11 +8,14 @@ public class LevelManager : MonoBehaviour
     AudioSource audioSource;
     AudioClip WinSFX;
     AudioClip LoseSFX;
+    public AudioClip LevelMusic;
     public String nextLevel;
     float counter;
     Boolean isPlaying;
     Boolean isLost;
     Boolean isWon;
+    public GameObject player;
+    AudioSource playerAudio;
     void Awake()
     {
         audioSource = GetComponent<AudioSource>();
@@ -24,6 +27,11 @@ public class LevelManager : MonoBehaviour
     {
         // tracks how long the level has taken
         counter = 0;
+        // play the level music
+        playerAudio = player.GetComponent<AudioSource>();
+        playerAudio.loop = true;
+        playerAudio.clip = LevelMusic;
+        playerAudio.Play();
     }
 
     
@@ -32,7 +40,7 @@ public class LevelManager : MonoBehaviour
         TimeTick();
         if(isWon)
         {
-            PlayAudioClip(WinSFX);
+            // ChangeMusic(WinSFX);
             // if a next level is given, move on, otherwise replay
             if(nextLevel != null)
             {
@@ -46,7 +54,7 @@ public class LevelManager : MonoBehaviour
         }
         if(isLost)
         {
-            PlayAudioClip(LoseSFX);
+            ChangeMusic(LoseSFX);
             Invoke("ReplayLevel", 1);
         }
     }
@@ -88,5 +96,12 @@ public class LevelManager : MonoBehaviour
     {
         Scene scene = SceneManager.GetActiveScene();
         SceneManager.LoadScene(scene.name);
+    }
+
+    void ChangeMusic(AudioClip clip)
+    {
+        playerAudio.loop = false;
+        playerAudio.clip = clip;
+        playerAudio.Play();
     }
 }
