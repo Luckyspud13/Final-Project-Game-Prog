@@ -11,6 +11,7 @@ public class PlayerStats : MonoBehaviour
     float dOTTimer = 0;
     float maxDOTTime = 0.5f;
     public AudioClip acidDamageSFX;
+    public AudioClip rocketDamageSFX;
 
     [Header("Jetpack Fuel")]
     [SerializeField] private float maxFuel = 100f;
@@ -93,6 +94,22 @@ public class PlayerStats : MonoBehaviour
                 dOTTimer = maxDOTTime;
             }
             
+        }
+    }
+
+    void OnCollisionEnter(Collision other)
+    {
+        if(other.gameObject.CompareTag("Rocket"))
+        {
+            Debug.Log("tagged and bagged");
+            RocketBehavior script = other.gameObject.GetComponent<RocketBehavior>();
+            if(!script)
+            {
+                Debug.Log("Incorrect tagging of rocket object");
+                return;
+            }
+
+            takeDamage(script.GetDamageValue());
         }
     }
 
