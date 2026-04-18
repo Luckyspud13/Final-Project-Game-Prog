@@ -88,7 +88,7 @@ MonoBehaviour:
   currentState: 0
   baseDamageValue: 25
   rotationSpeed: 15
-  detectionRange: 100
+  detectionRange: 75
   healthSlider: {fileID: 0}
   projectilePrefab: {fileID: 1593046666255972, guid: c11a889ae581148039036a639c0ab779, type: 3}
   fireRate: 0.5
