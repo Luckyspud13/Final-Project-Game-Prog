@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,6 +13,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool hasElytra = true;
     [SerializeField] private bool hasWallJumpBoots = true;
     [SerializeField] private bool hasPlatformBoots = true;
+    [SerializeField] private bool hasDoubleJump = true;
 
     [Header("Movement")]
     [SerializeField] private float maxGroundSpeed = 10f;
@@ -46,7 +48,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float jetpackHoldForce = 14f;
     [SerializeField] private float jetpackHoldMaxDuration = 0.75f;
     [SerializeField] private float jetpackHoldFuelPerSec = 40f;
-    [SerializeField] private Slider jetpackSlider;
 
     [Header("Wall Jump")]
     [SerializeField] private float wallCheckDistance = 0.6f;
@@ -68,7 +69,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private GameObject platformPrefab;
     [SerializeField] private float platformDuration = 4f;
     [SerializeField] private AudioClip platformSound;
-    [SerializeField] private Slider platformSlider;
     [SerializeField] private int maxPlatformNum;
     private int currentPlatformNum;
 
@@ -83,6 +83,15 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float bobFrequency = 10f;
     [SerializeField] private float bobAmount = 0.05f;
     [SerializeField] private float bobSmooth = 10f;
+    [Header("UI Settings")]
+    [SerializeField] private Slider hpSlider;
+    [SerializeField] private Slider platformSlider;
+    [SerializeField] private Slider jetpackSlider;
+    [SerializeField] private RawImage hasJetpackImage;
+    [SerializeField] private RawImage hasDoubleJumpImage;
+    [SerializeField] private RawImage hasPlatformImage;
+    [SerializeField] private Color lockedColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+    [SerializeField] private Color unlockedColor = Color.white;
 
     private float bobTimer = 0f;
     private Vector3 armDefaultPos;
@@ -90,6 +99,8 @@ public class PlayerController : MonoBehaviour
     // Internal state
     private CharacterController controller;
     private PlayerStats stats;
+
+    private bool canDoubleJump = false;
 
     private Vector3 horizontalVel;
     private float verticalVel;
@@ -175,11 +186,26 @@ public class PlayerController : MonoBehaviour
             armDefaultPos = armPrefab.localPosition;
         }
 
-        jetpackSlider.maxValue = jetpackHoldMaxDuration;
-        jetpackSlider.value = jetpackSlider.maxValue;
+
+        if (jetpackSlider != null && stats != null)
+        {
+            jetpackSlider.maxValue = stats.MaxFuel; 
+            jetpackSlider.value = stats.CurrentFuel;
+        }
         currentPlatformNum = maxPlatformNum;
-        platformSlider.maxValue = maxPlatformNum;
-        platformSlider.value = currentPlatformNum;
+        if (platformSlider != null)
+        {
+            platformSlider.maxValue = maxPlatformNum;
+            platformSlider.value = currentPlatformNum;
+        }
+        if (hpSlider != null && stats != null)
+        {
+            hpSlider.maxValue = stats.MaxHealth;
+            hpSlider.value = stats.GetHealth();
+        }
+        UpdateJetpackIcon();
+        UpdatePlatformIcon();
+        UpdateDoubleJumpIcon();
     }
 
     void Update()
@@ -192,6 +218,14 @@ public class PlayerController : MonoBehaviour
         HandlePlatformCreation();
         HandleJetpackLoopSound();
         HandleArmBob();
+        if (hpSlider != null && stats != null)
+        {
+            hpSlider.value = stats.GetHealth();
+        }
+        if (jetpackSlider != null && stats != null)
+        {
+            jetpackSlider.value = stats.CurrentFuel;
+        }
     }
 
     void PlaySound(AudioClip clip)
@@ -233,7 +267,7 @@ public class PlayerController : MonoBehaviour
             return;
         }
         // spawn just below the player's feet
-        Vector3 spawnPos = transform.position + Vector3.down * 1.1f;
+        Vector3 spawnPos = transform.position + Vector3.down * 2f;
         GameObject newPlatform = Instantiate(platformPrefab, spawnPos, Quaternion.identity);
         Destroy(newPlatform, platformDuration);
 
@@ -261,6 +295,7 @@ public class PlayerController : MonoBehaviour
             isWallSliding = false;
             isJetpackBoosting = false;
             jetpackBoostTimer = 0f;
+            canDoubleJump = true;
 
             // buffered slide from air
             if (wantsSlideOnLand)
@@ -456,6 +491,15 @@ public class PlayerController : MonoBehaviour
             verticalVel = wallJumpUpForce;
             horizontalVel = wallNormal * wallJumpAwayForce;
             isWallSliding = false;
+            canDoubleJump = true;
+            PlaySound(jumpSound);
+            return;
+        }
+
+        if (hasDoubleJump && canDoubleJump)
+        {
+            verticalVel = Mathf.Sqrt(2f * jumpHeight * gravity);
+            canDoubleJump = false; 
             PlaySound(jumpSound);
             return;
         }
@@ -500,6 +544,7 @@ public class PlayerController : MonoBehaviour
 
             verticalVel += jetpackHoldForce * Time.deltaTime;
             jetpackBoostTimer += Time.deltaTime;
+
         }
         else
         {
@@ -630,11 +675,19 @@ public class PlayerController : MonoBehaviour
     public void EnableJetpack()
     {
         hasJetpack = true;
+        UpdateJetpackIcon();
     }
 
     public void EnablePlatformBoots()
     {
         hasPlatformBoots = true;
+        UpdatePlatformIcon();
+    }
+
+    public void EnableDoubleJump()
+    {
+        hasDoubleJump = true;
+        UpdateDoubleJumpIcon();
     }
 
     public void AddCurrentPlatformNum()
@@ -645,5 +698,42 @@ public class PlayerController : MonoBehaviour
         {
             platformSlider.value = currentPlatformNum;
         }
+    }
+
+    private void UpdateJetpackIcon()
+    {
+        if (hasJetpackImage == null) return;
+
+        if (hasJetpack)
+        {
+            hasJetpackImage.color = unlockedColor;
+        }
+        else
+        {
+            hasJetpackImage.color = lockedColor;
+        }
+    }
+
+    private void UpdatePlatformIcon()
+    {
+        if (hasPlatformImage == null) return;
+        if (hasPlatformBoots)
+        {
+            hasPlatformImage.color = unlockedColor;
+        }
+        else
+        {
+            hasPlatformImage.color = lockedColor;
+        }
+    }
+
+    private void UpdateDoubleJumpIcon()
+    {
+        if (hasDoubleJumpImage == null) return;
+        
+        if (hasDoubleJump)
+            hasDoubleJumpImage.color = unlockedColor;
+        else
+            hasDoubleJumpImage.color = lockedColor;
     }
 }

@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class PickupBehavior : MonoBehaviour
 {
-    public enum ItemType { Jetpack, Platform}
+    public enum ItemType { Jetpack, Platform, DoubleJump}
     public ItemType type;
     
     [Header("Visual Settings")]
@@ -42,6 +42,9 @@ public class PickupBehavior : MonoBehaviour
                         break;
                     case ItemType.Platform:
                         player.EnablePlatformBoots();
+                        break;
+                    case ItemType.DoubleJump:
+                        player.EnableDoubleJump();
                         break;
                 }
                 if (player.armsAnimator)

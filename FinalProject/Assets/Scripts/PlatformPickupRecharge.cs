@@ -20,6 +20,7 @@ public class PlatformPickupRecharge : MonoBehaviour
         {
             PlayerController pc = other.GetComponent<PlayerController>();
             pc.AddCurrentPlatformNum();
+            Destroy(gameObject);
         }
     }
 }

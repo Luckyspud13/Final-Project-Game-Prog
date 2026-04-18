@@ -3,7 +3,10 @@ using UnityEngine;
 public class PlayerStats : MonoBehaviour
 {
     // keeps all the player's information so other functions don't have to
-    private int health = 100;
+    [SerializeField] private int maxHealth = 100;
+    private int health;
+    public int MaxHealth => maxHealth;
+    public float HealthPercent => (float)health / maxHealth;
     private Vector3 direction;
     private float currentSpeed;
     private Vector3 acceleration;
@@ -23,9 +26,9 @@ public class PlayerStats : MonoBehaviour
     public float MaxFuel => maxFuel;
     public float FuelPercent => currentFuel / maxFuel;
 
-    void Start()
+    void Awake()
     {
-        Debug.Log("PlayerStats Starts");
+        health = maxHealth;
         currentFuel = maxFuel;
     }
 
