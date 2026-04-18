@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
@@ -43,6 +44,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float jetpackHoldForce = 14f;
     [SerializeField] private float jetpackHoldMaxDuration = 0.75f;
     [SerializeField] private float jetpackHoldFuelPerSec = 40f;
+    [SerializeField] private Slider jetpackSlider;
 
     [Header("Wall Jump")]
     [SerializeField] private float wallCheckDistance = 0.6f;
@@ -64,6 +66,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private GameObject platformPrefab;
     [SerializeField] private float platformDuration = 4f;
     [SerializeField] private AudioClip platformSound;
+    [SerializeField] private Slider platformSlider;
+    [SerializeField] private int maxPlatformNum;
+    private int currentPlatformNum;
 
     // ── Internal state ──
     private CharacterController controller;
@@ -134,6 +139,12 @@ public class PlayerController : MonoBehaviour
             else
                 Debug.LogWarning("PlayerController: No camera found – elytra won't work.");
         }
+        jetpackSlider.maxValue = jetpackHoldMaxDuration;
+        jetpackSlider.value = jetpackSlider.maxValue;
+        currentPlatformNum = maxPlatformNum;
+        platformSlider.maxValue = maxPlatformNum;
+        platformSlider.value = currentPlatformNum;
+        
     }
 
     void Update()
@@ -164,6 +175,10 @@ public class PlayerController : MonoBehaviour
 
     void CreatePlatform()
     {
+        if (currentPlatformNum < 1)
+        {
+            return;
+        }
         // spawn just below the player's feet
         Vector3 spawnPos = transform.position + Vector3.down * 1.1f;
         GameObject newPlatform = Instantiate(platformPrefab, spawnPos, Quaternion.identity);
@@ -171,6 +186,8 @@ public class PlayerController : MonoBehaviour
 
         if (platformSound && audioSource != null)
             audioSource.PlayOneShot(platformSound);
+        currentPlatformNum -= 1;
+        platformSlider.value = currentPlatformNum;
     }
 
     // ── normal movement ──
@@ -200,6 +217,7 @@ public class PlayerController : MonoBehaviour
         DetectWall(grounded);
         HandleJumping(grounded);
         HandleJetpackHoldBoost(grounded);
+        jetpackSlider.value = jetpackHoldMaxDuration - jetpackBoostTimer;
         ApplyNormalGravity(grounded);
 
         Vector3 motion = horizontalVel + Vector3.up * verticalVel;
@@ -527,5 +545,15 @@ public class PlayerController : MonoBehaviour
         if (Physics.Raycast(transform.position, Vector3.down, out RaycastHit hit, controller.height * 0.5f + 0.3f))
             return hit.normal;
         return Vector3.up;
+    }
+
+    public void AddCurrentPlatformNum()
+    {
+        if (currentPlatformNum + 1 > maxPlatformNum) return;
+        currentPlatformNum++;
+        if (platformSlider != null) 
+        {
+            platformSlider.value = currentPlatformNum;
+        }
     }
 }
