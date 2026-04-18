@@ -3,11 +3,15 @@ using UnityEngine;
 public class PlayerStats : MonoBehaviour
 {
     // keeps all the player's information so other functions don't have to
-    private int health;
+    private int health = 100;
     private Vector3 direction;
     private float currentSpeed;
     private Vector3 acceleration;
     private float maxSpeed;
+    float dOTTimer = 0;
+    float maxDOTTime = 0.5f;
+    public AudioClip acidDamageSFX;
+    public AudioClip rocketDamageSFX;
 
     [Header("Jetpack Fuel")]
     [SerializeField] private float maxFuel = 100f;
@@ -37,6 +41,15 @@ public class PlayerStats : MonoBehaviour
     public void SetCurrentSpeed(float newSpeed) { currentSpeed = newSpeed; }
     public void SetAcceleration(Vector3 newAcceleration) { acceleration = newAcceleration; }
 
+    void Update()
+    {
+        // tracks damage over time timer
+        if(dOTTimer > 0 || GetHealth() > 0)
+        {
+            dOTTimer -= Time.deltaTime;
+        }
+    }
+
     // jetpack fuel
 
     // try to spend fuel, returns false if not enough
@@ -52,5 +65,64 @@ public class PlayerStats : MonoBehaviour
     public void AddFuel(float amount)
     {
         currentFuel = Mathf.Min(currentFuel + amount, maxFuel);
+    }
+
+    void OnTriggerStay(Collider other)
+    {
+        if(other.CompareTag("GasCloud"))
+        {
+            if(dOTTimer <= 0)
+            {
+                AcidCloud script = other.GetComponent<AcidCloud>();
+                if(!script)
+                {
+                    Debug.Log("Incorrect tagging of Acid Cloud");
+                }
+
+                // play the acid audio clip
+                AudioSource source = gameObject.GetComponent<AudioSource>();
+                if(!source)
+                {
+                    Debug.Log("Player has no audio source");
+                }
+                else
+                {
+                    source.PlayOneShot(acidDamageSFX);
+                }
+
+                takeDamage(script.GetDamage());
+                dOTTimer = maxDOTTime;
+            }
+            
+        }
+    }
+
+    void OnCollisionEnter(Collision other)
+    {
+        if(other.gameObject.CompareTag("Rocket"))
+        {
+            Debug.Log("tagged and bagged");
+            RocketBehavior script = other.gameObject.GetComponent<RocketBehavior>();
+            if(!script)
+            {
+                Debug.Log("Incorrect tagging of rocket object");
+                return;
+            }
+
+            takeDamage(script.GetDamageValue());
+        }
+    }
+
+    void takeDamage(int damage)
+    {
+        int health = GetHealth();
+        health -= damage;
+        if(health <= 0)
+        {
+            // player dies
+            FindAnyObjectByType<LevelManager>().LevelLost();
+        }
+
+        SetHealth(health);
     }
 }
