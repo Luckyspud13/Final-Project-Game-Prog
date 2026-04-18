@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
@@ -45,6 +46,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float jetpackHoldForce = 14f;
     [SerializeField] private float jetpackHoldMaxDuration = 0.75f;
     [SerializeField] private float jetpackHoldFuelPerSec = 40f;
+    [SerializeField] private Slider jetpackSlider;
 
     [Header("Wall Jump")]
     [SerializeField] private float wallCheckDistance = 0.6f;
@@ -66,6 +68,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private GameObject platformPrefab;
     [SerializeField] private float platformDuration = 4f;
     [SerializeField] private AudioClip platformSound;
+    [SerializeField] private Slider platformSlider;
+    [SerializeField] private int maxPlatformNum;
+    private int currentPlatformNum;
 
     [Header("Sound Effects")]
     [SerializeField] private AudioClip jumpSound;
@@ -169,6 +174,12 @@ public class PlayerController : MonoBehaviour
         {
             armDefaultPos = armPrefab.localPosition;
         }
+
+        jetpackSlider.maxValue = jetpackHoldMaxDuration;
+        jetpackSlider.value = jetpackSlider.maxValue;
+        currentPlatformNum = maxPlatformNum;
+        platformSlider.maxValue = maxPlatformNum;
+        platformSlider.value = currentPlatformNum;
     }
 
     void Update()
@@ -217,13 +228,19 @@ public class PlayerController : MonoBehaviour
 
     void CreatePlatform()
     {
+        if (currentPlatformNum < 1)
+        {
+            return;
+        }
         // spawn just below the player's feet
-        Vector3 spawnPos = transform.position + Vector3.down * 2.25f;
+        Vector3 spawnPos = transform.position + Vector3.down * 1.1f;
         GameObject newPlatform = Instantiate(platformPrefab, spawnPos, Quaternion.identity);
         Destroy(newPlatform, platformDuration);
 
         if (platformSound && audioSource != null)
             audioSource.PlayOneShot(platformSound);
+        currentPlatformNum -= 1;
+        platformSlider.value = currentPlatformNum;
     }
 
     // normal movement
@@ -618,5 +635,15 @@ public class PlayerController : MonoBehaviour
     public void EnablePlatformBoots()
     {
         hasPlatformBoots = true;
+    }
+
+    public void AddCurrentPlatformNum()
+    {
+        if (currentPlatformNum + 1 > maxPlatformNum) return;
+        currentPlatformNum++;
+        if (platformSlider != null) 
+        {
+            platformSlider.value = currentPlatformNum;
+        }
     }
 }
