@@ -9,7 +9,6 @@ public class LevelManager : MonoBehaviour
     AudioClip WinSFX;
     AudioClip LoseSFX;
     public AudioClip LevelMusic;
-    public String nextLevel;
     float counter;
     Boolean isPlaying;
     Boolean isLost;
@@ -41,16 +40,7 @@ public class LevelManager : MonoBehaviour
         if(isWon)
         {
             // ChangeMusic(WinSFX);
-            // if a next level is given, move on, otherwise replay
-            if(nextLevel != null)
-            {
-                NextLevel(nextLevel);
-            }
-            else
-            {
-                ReplayLevel();
-            }
-            
+            NextLevel();
         }
         if(isLost)
         {
@@ -86,9 +76,18 @@ public class LevelManager : MonoBehaviour
     }
 
     // calls the given scene
-    void NextLevel(String level)
+    void NextLevel()
     {
-        SceneManager.LoadScene(level);
+        // if the next level exists, move to it, if not go to the main menu
+        Debug.Log("NumScenes: " + SceneManager.sceneCountInBuildSettings.ToString());
+        if(SceneManager.GetActiveScene().buildIndex + 1 < SceneManager.sceneCountInBuildSettings)
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
+        }
+        else
+        {
+            SceneManager.LoadScene("MainMenu");
+        }
     }
 
     // restarts the current scene

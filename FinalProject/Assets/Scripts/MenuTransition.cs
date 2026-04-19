@@ -1,3 +1,5 @@
+using NUnit.Framework.Constraints;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -5,6 +7,8 @@ using UnityEngine.UI;
 public class MenuTransition : MonoBehaviour
 {
     public Button[] buttons;
+    public TMP_Text text;
+    public Slider slider;
 
     void Awake()
     {
@@ -17,11 +21,22 @@ public class MenuTransition : MonoBehaviour
         {
             buttons[i].interactable = true;
         }
+
+        slider.value = PlayerPrefs.GetFloat("MouseSensitivity", 100);
+        text.text = slider.value.ToString();
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
     }
 
     public void OpenLevel(int levelId)
     {
         string levelName = "Level" + levelId;
         SceneManager.LoadScene(levelName);
+    }
+
+    public void SetMouseSensitivity()
+    {
+        text.text = slider.value.ToString();
+        PlayerPrefs.SetFloat("MouseSensitivity", slider.value);
     }
 }

@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class MouseLook : MonoBehaviour
 {
-    [SerializeField] private float mouseSensitivity = 100f;
+    [SerializeField] private float mouseSensitivity = 100;
     [SerializeField] private float pitchMin = -90f;
     [SerializeField] private float pitchMax = 90f;
 
@@ -15,6 +15,7 @@ public class MouseLook : MonoBehaviour
         playerPos = transform.parent.transform;
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
+        mouseSensitivity = PlayerPrefs.GetFloat("MouseSensitivity");
     }
 
     // Update is called once per frame

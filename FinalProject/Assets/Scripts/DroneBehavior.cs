@@ -1,3 +1,4 @@
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
@@ -8,6 +9,7 @@ public class DroneBehavior : MonoBehaviour
     [Header("General Settings")]
     public EnemyState currentState = EnemyState.Patrol;
     public int baseDamageValue = 25;
+    
     [Header("Navigate Settings")]
     public float rotationSpeed = 30f;
     public float detectionRange = 20f;
@@ -23,16 +25,18 @@ public class DroneBehavior : MonoBehaviour
     public int health = 100;
     public GameObject destroyPref;
     bool isEnemyDead = false;
-    NavMeshAgent agent;
-    public GameObject buildPref;
+
+    [Header("Navigate Settings")]
+    public Transform[] waypoints;
+    public int speed = 5;
+    private int waypointIndex;
+    private float dist;
+
     float fireCooldown = 0;
     Transform attackTarget;
-    Quaternion initialTurretRotation;
     int maxHealth;
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-
         if(healthSlider)
         {
             healthSlider.maxValue = maxHealth;
@@ -41,6 +45,8 @@ public class DroneBehavior : MonoBehaviour
 
         firePoint = transform;
         firePoint.position += Vector3.forward;
+        waypointIndex = 0;
+        transform.LookAt(waypoints[waypointIndex].position);
     }
 
     void Update()
@@ -71,6 +77,22 @@ public class DroneBehavior : MonoBehaviour
 
     void Navigate()
     {
+        // check if the AI has reached its patrol destination
+        dist = Vector3.Distance(transform.position, waypoints[waypointIndex].position);
+        if(dist < 1f)
+        {
+            waypointIndex++;
+            if(waypointIndex >= waypoints.Length)
+            {
+                waypointIndex = 0;
+            }
+            transform.LookAt(waypoints[waypointIndex].position);
+        }
+
+        // have the ai patrol
+        transform.Translate(Vector3.forward * speed * Time.deltaTime);
+
+        // check for the player
         if(canAttack)
         {
             FindPlayer();
@@ -110,8 +132,6 @@ public class DroneBehavior : MonoBehaviour
         if(isEnemyDead) {
             return;
         }
-        // Debug.Log("Dying...");
-        agent.isStopped = true;
 
         if(destroyPref)
         {
