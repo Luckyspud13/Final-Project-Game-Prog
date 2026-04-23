@@ -10,7 +10,6 @@ public class LevelManager : MonoBehaviour
     AudioClip LoseSFX;
     public AudioClip LevelMusic;
     float counter;
-    Boolean isPlaying;
     Boolean isLost;
     Boolean isWon;
     public GameObject player;
@@ -18,7 +17,6 @@ public class LevelManager : MonoBehaviour
     void Awake()
     {
         audioSource = GetComponent<AudioSource>();
-        isPlaying = true;
         isLost = false;
     }
 
@@ -58,14 +56,12 @@ public class LevelManager : MonoBehaviour
     public void LevelLost()
     {
         isLost = true;
-        isPlaying = false;
     }
 
     // called if player determines the level has been won
     public void IsBeaten()
     {
         isWon = true;
-        isPlaying = false;
     }
 
     // plays the input clip
